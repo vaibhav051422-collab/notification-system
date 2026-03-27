@@ -48,8 +48,7 @@ async function startConsumer() {
                     channel.ack(msg); // Acknowledge if sending succeeded
                 } catch (error) {
                     console.error(' Failed to process message:', error.message);
-                    // Reject and requeue message on error
-                    channel.nack(msg, false, true);
+                   channel.nack(msg, false, true);
                 }
             }
         });

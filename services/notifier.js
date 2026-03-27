@@ -2,7 +2,7 @@ import nodemailer from 'nodemailer';
 import twilio from 'twilio';
 import 'dotenv/config';
 
-// Email Config
+// Email 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// SMS Config
+// SMS
 const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
 
 export const sendEmail = async (to, subject, body) => {
