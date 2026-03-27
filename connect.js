@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-//  connect node js to rabbitmq
+
 async function connect() {
     try {
         const connection = await amp.connect(process.env.RABBITMQ_URL || 'amqp://localhost:5672');

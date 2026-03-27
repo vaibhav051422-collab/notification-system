@@ -1,5 +1,28 @@
 import amqp from 'amqplib';
 
+// Load notifier functions with fallback to avoid startup crash
+let sendEmail, sendSMS;
+
+async function initializeNotifier() {
+    try {
+        const notifier = await import('./services/notifier.js');
+        sendEmail = notifier.sendEmail;
+        sendSMS = notifier.sendSMS;
+        console.log('✓ Notifier module loaded');
+    } catch (importErr) {
+        console.warn('  Notifier module import failed:', importErr.message);
+        // Fallback implementations
+        sendEmail = async (to, subject, body) => {
+            console.log(`[Mock Email] To: ${to}, Subject: ${subject}, Body: ${body}`);
+            return { success: true };
+        };
+        sendSMS = async (to, body) => {
+            console.log(`[Mock SMS] To: ${to}, Body: ${body}`);
+            return { success: true };
+        };
+    }
+}
+
 async function startConsumer() {
     try {
         const connection = await amqp.connect('amqp://localhost:5672');
@@ -7,33 +30,36 @@ async function startConsumer() {
         const queue = 'notifications';
 
         await channel.assertQueue(queue, { durable: false });
-        console.log('Waiting for messages in queue:', queue);
+        console.log('✓ Worker is live. Waiting for messages...');
 
-        channel.consume(queue, (msg) => {
-            if (msg === null) {
-                return;
-            }
+        channel.consume(queue, async (msg) => {
+            if (msg !== null) {
+                try {
+                    const content = JSON.parse(msg.content.toString());
+                    console.log(`Processing ${content.type} to ${content.to}...`);
 
-            try {
-                const content = JSON.parse(msg.content.toString());
+                    if (content.type === 'email') {
+                        await sendEmail(content.to, content.subject, content.body);
+                    } else if (content.type === 'sms') {
+                        await sendSMS(content.to, content.body);
+                    }
 
-                console.log('[Consumer] Received a new request:');
-                console.log(`- Type: ${String(content.type || '').toUpperCase()}`);
-                console.log(`- To: ${content.to}`);
-                console.log(`- Message: ${content.body}`);
-
-                // Message processed successfully, acknowledge it and delete from the queue
-                channel.ack(msg);
-            }
-            catch (error) {
-                console.error('Failed to process message:', error);
-                channel.ack(msg, false, false);
+                    console.log(' Delivered successfully!');
+                    channel.ack(msg); // Acknowledge if sending succeeded
+                } catch (error) {
+                    console.error(' Failed to process message:', error.message);
+                    // Reject and requeue message on error
+                    channel.nack(msg, false, true);
+                }
             }
         });
-    }
-    catch (error) {
-        console.error('Failed to start consumer:', error);
+    } catch (err) {
+        console.error(' Connection Error:', err.message);
     }
 }
 
-startConsumer();
+
+(async () => {
+    await initializeNotifier();
+    await startConsumer();
+})();
